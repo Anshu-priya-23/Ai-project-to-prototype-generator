@@ -92,25 +92,27 @@ Java and Maven do not need to be installed locally when the backend is built wit
 
 ## Environment Configuration
 
-The backend requires this environment variable:
+Copy the committed variable template and supply local-only values. `.env` and all `.env.*` files except `.env.example` are ignored by Git.
+
+```powershell
+Copy-Item .env.example .env
+```
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `AI_API_KEY` | Yes | Authenticates AI Service requests to the configured Gemini API. |
+| `AI_API_KEY` | Yes | Authenticates AI Service requests to the configured Gemini endpoint. |
+| `AI_MODEL` | No | Overrides the model; Compose defaults to `gemini-3.6-flash`. |
+| `JWT_SECRET` | Yes | Signs authentication tokens. Use a long random value. |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Yes | Configure local Compose PostgreSQL. |
+| `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `RABBITMQ_ERLANG_COOKIE` | Yes | Configure local RabbitMQ. |
+| `CORS_ALLOWED_ORIGIN` | No | Allowed browser origin; defaults locally to `http://localhost:5173`. |
+| `VITE_API_BASE_URL` | Production | Public Gateway URL ending in `/api`; local development uses the Vite proxy when unset. |
 
-Set it only in your shell or local secret-management mechanism. Do not commit the value.
-
-PowerShell:
-
-```powershell
-$env:AI_API_KEY="your-api-key"
-```
-
-macOS or Linux:
-
-```bash
-export AI_API_KEY="your-api-key"
-```
+Never commit real values. Render generates internal credentials where possible and prompts for deployment-specific values.
 
 ## Local Setup
 
@@ -122,7 +124,7 @@ From the repository root:
 docker compose up --build -d
 ```
 
-This builds and starts PostgreSQL, RabbitMQ, Auth Service, Project Service, AI Service, and the API Gateway on the shared `enterprise-network` Docker network.
+This builds and starts PostgreSQL, RabbitMQ, Auth Service, Project Service, AI Service, and the API Gateway on the shared `enterprise-network` Docker network, using values from `.env`.
 
 Check container status:
 
@@ -142,7 +144,7 @@ In a second terminal:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -185,6 +187,52 @@ All browser-facing API calls go through the API Gateway at `http://localhost:808
 | `GET` | `/api/v1/ai/status` | Return the AI service readiness response. | None |
 
 Authentication responses contain `token` and `email`. Project responses contain the project metadata, `prototypeStatus`, saved `prototypeSpec`, and `prototypeError` when generation fails.
+
+Backend health is available directly on every Spring service at `/actuator/health`. The public Gateway check is [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health).
+
+## Deploy to Render
+
+The root [`render.yaml`](render.yaml) is a Render Blueprint. It attaches Auth Service and Project Service to the existing Render PostgreSQL database named `prototype-db`; it does not create another database.
+
+### Before deployment
+
+1. Push the repository to a Git provider connected to Render.
+2. Confirm `prototype-db` exists in the Render workspace where the Blueprint will be created.
+3. Ensure every private backend service and RabbitMQ is created in the **same region as `prototype-db`**. Render private networking and the database internal connection string are regional. If the database is not in Render's default Blueprint region, add the same supported `region` value to the five non-static services in `render.yaml` before applying it.
+4. In the Render Dashboard, choose **New > Blueprint**, select this repository, and apply `render.yaml`.
+
+### Values requested during Blueprint creation
+
+| Service | Variable | Value to supply |
+| --- | --- | --- |
+| `prototype-ai-service` | `AI_API_KEY` | Your AI provider key. |
+| `prototype-api-gateway` | `CORS_ALLOWED_ORIGIN` | The final frontend origin, for example `https://prototype-frontend.onrender.com` (no trailing slash). |
+| `prototype-frontend` | `VITE_API_BASE_URL` | The final public Gateway URL plus `/api`, for example `https://prototype-api-gateway.onrender.com/api`. |
+
+Render generates `JWT_SECRET`, the RabbitMQ password, and the Erlang cookie. Database details come from `prototype-db`; RabbitMQ connection values are shared internally through Blueprint references. Do not enter or commit those generated values manually.
+
+Because Vite embeds `VITE_API_BASE_URL` at build time, redeploy the static frontend after its final Gateway URL is set. If Render assigns URLs only after the first Blueprint creation, set both public URL variables in the Dashboard and trigger one frontend redeploy.
+
+### Deployment order and verification
+
+The Blueprint manages dependencies, but the useful readiness order is:
+
+1. Existing `prototype-db`.
+2. `prototype-rabbitmq`.
+3. `prototype-auth-service`, `prototype-project-service`, and `prototype-ai-service`.
+4. `prototype-api-gateway`.
+5. `prototype-frontend` after its build-time Gateway URL is known.
+
+Verify the Gateway first:
+
+```text
+GET https://<gateway-host>/actuator/health
+GET https://<gateway-host>/api/v1/ai/status
+```
+
+Then open the frontend and test registration, authentication, project creation, listing, prototype generation, and the saved prototype preview. The Gateway is the only public backend; Auth, Project, AI, and RabbitMQ are Render private services.
+
+Render uses the Gateway's `/actuator/health` as its HTTP health check. Private services expose the same actuator endpoint for diagnostics and receive Render's private-service TCP readiness check.
 
 ## Project Structure
 
@@ -259,7 +307,7 @@ The following are potential improvements and are not part of the current impleme
 - Add project editing, deletion, sharing, and prototype version history.
 - Export generated specifications or previews to portable formats.
 - Add automated integration tests for RabbitMQ processing and AI response validation.
-- Add service health endpoints, centralized logs, metrics, tracing, and production deployment manifests.
+- Add centralized logs, metrics, and distributed tracing.
 
 ## Security Notes
 

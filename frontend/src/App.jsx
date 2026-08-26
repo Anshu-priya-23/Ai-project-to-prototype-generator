@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api' });
 const statusLabels = {
   NOT_STARTED: 'Ready to generate', QUEUED: 'Queued', GENERATING: 'Generating',
   COMPLETED: 'Completed', FAILED: 'Failed'

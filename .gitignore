@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+**/target/
+**/node_modules/
+**/dist/
+**/build/
+*.jar
+*.class
+
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

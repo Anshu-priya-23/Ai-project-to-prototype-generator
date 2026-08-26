@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class ProjectServiceApplication {
 
 	public static void main(String[] args) {
+		RenderDatabaseUrl.configure();
 		SpringApplication.run(ProjectServiceApplication.class, args);
 	}
 }

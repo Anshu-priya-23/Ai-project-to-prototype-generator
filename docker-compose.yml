@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: enterprise_db
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d enterprise_db"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -18,6 +18,10 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
     ports:
       - "15672:15672"
     healthcheck:
@@ -30,7 +34,10 @@ services:
   auth-service:
     build: ./auth-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/enterprise_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,8 +46,13 @@ services:
   project-service:
     build: ./project-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/enterprise_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +66,9 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-gemini-3.6-flash}
       SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -63,6 +78,14 @@ services:
     build: ./api-gateway
     ports:
       - "8080:8080"
+    environment:
+      AUTH_SERVICE_HOST: auth-service
+      AUTH_SERVICE_PORT: 8081
+      PROJECT_SERVICE_HOST: project-service
+      PROJECT_SERVICE_PORT: 8082
+      AI_SERVICE_HOST: ai-service
+      AI_SERVICE_PORT: 8083
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:5173}
     depends_on:
       - auth-service
       - project-service
