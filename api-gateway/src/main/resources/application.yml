@@ -16,17 +16,17 @@ spring:
             allowedHeaders: "*"
       routes:
         - id: auth-service
-          uri: http://${AUTH_SERVICE_HOST:auth-service}:${AUTH_SERVICE_PORT:8081}
+          uri: ${AUTH_SERVICE_BASE_URL:http://auth-service:8081}
           predicates:
             - Path=/api/v1/auth/**
 
         - id: project-service
-          uri: http://${PROJECT_SERVICE_HOST:project-service}:${PROJECT_SERVICE_PORT:8082}
+          uri: ${PROJECT_SERVICE_BASE_URL:http://project-service:8082}
           predicates:
             - Path=/api/v1/projects/**
 
         - id: ai-service
-          uri: http://${AI_SERVICE_HOST:ai-service}:${AI_SERVICE_PORT:8083}
+          uri: ${AI_SERVICE_BASE_URL:http://ai-service:8083}
           predicates:
             - Path=/api/v1/ai/status
 

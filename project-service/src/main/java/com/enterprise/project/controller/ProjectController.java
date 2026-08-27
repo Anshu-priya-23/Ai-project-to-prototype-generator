@@ -24,12 +24,11 @@ public class ProjectController {
 
     public ProjectController(ProjectRepository projectRepository, Optional<ProjectEventProducer> eventProducer,
                              RestClient.Builder restClientBuilder,
-                             @Value("${AI_SERVICE_HOST:ai-service}") String aiServiceHost,
-                             @Value("${AI_SERVICE_PORT:8083}") int aiServicePort,
+                             @Value("${AI_SERVICE_BASE_URL:http://ai-service:8083}") String aiServiceBaseUrl,
                              @Value("${prototype.generation.mode:async}") String generationMode) {
         this.projectRepository = projectRepository;
         this.eventProducer = eventProducer;
-        this.aiClient = restClientBuilder.baseUrl("http://" + aiServiceHost + ":" + aiServicePort).build();
+        this.aiClient = restClientBuilder.baseUrl(aiServiceBaseUrl).build();
         this.generationMode = generationMode;
     }
 

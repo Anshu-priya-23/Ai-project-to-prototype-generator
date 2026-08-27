@@ -21,36 +21,12 @@ services:
     dockerContext: ./api-gateway
     healthCheckPath: /actuator/health
     envVars:
-      - key: AUTH_SERVICE_HOST
-        fromService:
-          type: web
-          name: prototype-auth-service
-          property: host
-      - key: AUTH_SERVICE_PORT
-        fromService:
-          type: web
-          name: prototype-auth-service
-          property: port
-      - key: PROJECT_SERVICE_HOST
-        fromService:
-          type: web
-          name: prototype-project-service
-          property: host
-      - key: PROJECT_SERVICE_PORT
-        fromService:
-          type: web
-          name: prototype-project-service
-          property: port
-      - key: AI_SERVICE_HOST
-        fromService:
-          type: web
-          name: prototype-ai-service
-          property: host
-      - key: AI_SERVICE_PORT
-        fromService:
-          type: web
-          name: prototype-ai-service
-          property: port
+      - key: AUTH_SERVICE_BASE_URL
+        sync: false
+      - key: PROJECT_SERVICE_BASE_URL
+        sync: false
+      - key: AI_SERVICE_BASE_URL
+        sync: false
       - key: CORS_ALLOWED_ORIGIN
         sync: false
 
@@ -85,16 +61,8 @@ services:
         value: sync
       - key: RABBIT_HEALTH_ENABLED
         value: false
-      - key: AI_SERVICE_HOST
-        fromService:
-          type: web
-          name: prototype-ai-service
-          property: host
-      - key: AI_SERVICE_PORT
-        fromService:
-          type: web
-          name: prototype-ai-service
-          property: port
+      - key: AI_SERVICE_BASE_URL
+        sync: false
 
   - type: web
     name: prototype-ai-service

@@ -84,7 +84,7 @@ Local Docker Compose explicitly sets `PROTOTYPE_GENERATION_MODE=async`:
 
 The prototype specification is stored in the project's `prototypeSpec` field as JSON, so screens and recommendations remain available after a browser refresh.
 
-Render sets `PROTOTYPE_GENERATION_MODE=sync`. Project Service marks the project `GENERATING`, calls `POST /api/v1/ai/prototype` on AI Service over Render's private network, and saves the returned `COMPLETED` or `FAILED` result before responding. RabbitMQ listeners, queues, and health checks are inactive in this mode.
+Render sets `PROTOTYPE_GENERATION_MODE=sync`. Project Service marks the project `GENERATING`, calls `POST /api/v1/ai/prototype` using the public HTTPS `AI_SERVICE_BASE_URL`, and saves the returned `COMPLETED` or `FAILED` result before responding. RabbitMQ listeners, queues, and health checks are inactive in this mode.
 
 ## Prerequisites
 
@@ -116,6 +116,9 @@ cp .env.example .env
 | `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `RABBITMQ_ERLANG_COOKIE` | Yes | Configure local RabbitMQ. |
 | `CORS_ALLOWED_ORIGIN` | No | Allowed browser origin; defaults locally to `http://localhost:5173`. |
 | `VITE_API_BASE_URL` | Production | Public Gateway URL ending in `/api`; local development uses the Vite proxy when unset. |
+| `AUTH_SERVICE_BASE_URL` | Render Gateway | Public HTTPS origin of Auth Service; Docker uses `http://auth-service:8081`. |
+| `PROJECT_SERVICE_BASE_URL` | Render Gateway | Public HTTPS origin of Project Service; Docker uses `http://project-service:8082`. |
+| `AI_SERVICE_BASE_URL` | Render Gateway and Project Service | Public HTTPS origin of AI Service; Docker uses `http://ai-service:8083`. |
 
 Never commit real values. Render generates internal credentials where possible and prompts for deployment-specific values.
 
@@ -206,7 +209,7 @@ All four backend services must use the same region as `prototype-db`. If the exi
 1. Push this repository to GitHub, GitLab, or Bitbucket.
 2. Confirm in the target Render workspace that the existing free database is named exactly `prototype-db`, and note its region.
 3. Select **New > Blueprint**, connect the repository, keep the Blueprint path as `render.yaml`, and select **Apply**.
-4. At the environment-variable prompts, enter the temporary values in the table below. Render generates `JWT_SECRET` and wires database and private service host/port values automatically.
+4. At the environment-variable prompts, enter the values in the table below. Render generates `JWT_SECRET` and wires the database connection automatically. Backend-to-backend traffic uses the configured public HTTPS service origins.
 5. Wait for all five resources to be created. Copy the actual `onrender.com` URLs shown for `prototype-frontend` and `prototype-api-gateway`.
 6. Open **prototype-api-gateway > Environment**, set `CORS_ALLOWED_ORIGIN` to the exact frontend origin with no trailing slash, and save/redeploy.
 7. Open **prototype-frontend > Environment**, set `VITE_API_BASE_URL` to the exact Gateway URL plus `/api`, save, then select **Manual Deploy > Clear build cache & deploy** because Vite embeds this value at build time.
@@ -215,7 +218,11 @@ All four backend services must use the same region as `prototype-db`. If the exi
 | Service | Variable | Exact value at the Blueprint prompt |
 | --- | --- | --- |
 | `prototype-ai-service` | `AI_API_KEY` | A real Gemini API key; keep it secret. |
+| `prototype-api-gateway` | `AUTH_SERVICE_BASE_URL` | `https://prototype-auth-service.onrender.com` |
+| `prototype-api-gateway` | `PROJECT_SERVICE_BASE_URL` | `https://prototype-project-service.onrender.com` |
+| `prototype-api-gateway` | `AI_SERVICE_BASE_URL` | `https://prototype-ai-service.onrender.com` |
 | `prototype-api-gateway` | `CORS_ALLOWED_ORIGIN` | Initially `https://prototype-frontend.onrender.com`, then the actual frontend origin. |
+| `prototype-project-service` | `AI_SERVICE_BASE_URL` | `https://prototype-ai-service.onrender.com` |
 | `prototype-frontend` | `VITE_API_BASE_URL` | Initially `https://prototype-api-gateway.onrender.com/api`, then the actual Gateway URL plus `/api`. |
 
 The Blueprint supplies the remaining production values:
@@ -227,8 +234,6 @@ The Blueprint supplies the remaining production values:
 | Project | `DATABASE_URL` | Existing `prototype-db` private connection string |
 | Project | `PROTOTYPE_GENERATION_MODE` | `sync` |
 | Project | `RABBIT_HEALTH_ENABLED` | `false` |
-| Project | `AI_SERVICE_HOST`, `AI_SERVICE_PORT` | AI web service private host and port |
-| Gateway | service host/port variables | Auth, Project, and AI private host/port references |
 | AI | `PROTOTYPE_GENERATION_MODE` | `sync` |
 | AI | `RABBIT_HEALTH_ENABLED` | `false` |
 | AI | `AI_MODEL` | `gemini-3.6-flash` |
@@ -239,7 +244,7 @@ The Blueprint supplies the remaining production values:
 - A workspace receives 750 free web-service instance hours per month. Four simultaneously active backend services consume those hours independently, so this is a lightly used portfolio demo rather than an always-busy production system.
 - A free PostgreSQL database is limited to 1 GB, has no backups or managed connection pooling, and expires 30 days after creation. Export or recreate demo data before expiry.
 - Free web services have ephemeral filesystems and cannot attach persistent disks. Durable application data belongs in PostgreSQL.
-- All backend components are web services and therefore have public Render URLs, even though service-to-service calls use Render's private network. This is not security-hardened production infrastructure.
+- All backend components are web services and service-to-service calls use their public HTTPS Render URLs. This is not security-hardened production infrastructure.
 - Generation is one synchronous HTTP request in the free deployment. A cold start, AI-provider latency, provider quota, or upstream timeout can fail it; the project records `FAILED` and can be regenerated.
 - Render's included bandwidth/build-minute quotas and the Gemini API's own quotas still apply.
 
