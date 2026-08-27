@@ -7,6 +7,32 @@ const statusLabels = {
   COMPLETED: 'Completed', FAILED: 'Failed'
 };
 
+function PasswordInput({ value, onChange }) {
+  const [visible, setVisible] = useState(false);
+
+  return <div className="password-field">
+    <input
+      type={visible ? 'text' : 'password'}
+      placeholder="Password"
+      value={value}
+      onChange={onChange}
+      required
+      minLength="6"
+    />
+    <button
+      type="button"
+      className="password-toggle"
+      onClick={() => setVisible(current => !current)}
+      aria-label={visible ? 'Hide password' : 'Show password'}
+      aria-pressed={visible}
+    >
+      {visible
+        ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 4.2A10.5 10.5 0 0 1 12 4c5.5 0 9 5.5 9 5.5a15 15 0 0 1-2.1 2.7M6.6 6.6C4.4 8 3 9.5 3 9.5S6.5 15 12 15a9.8 9.8 0 0 0 3.4-.6"/></svg>
+        : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-5.5 9-5.5 9 5.5 9 5.5-3.5 5.5-9 5.5S3 12 3 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>}
+    </button>
+  </div>;
+}
+
 function Preview({ project }) {
   const [activeId, setActiveId] = useState(null);
   const [activeStack, setActiveStack] = useState('frontend');
@@ -125,7 +151,7 @@ function App() {
     <form onSubmit={submitAuth}>
       {registering && <div className="two-col"><input placeholder="First name" value={auth.firstname} onChange={e => setAuth({...auth, firstname:e.target.value})} required/><input placeholder="Last name" value={auth.lastname} onChange={e => setAuth({...auth, lastname:e.target.value})} required/></div>}
       <input type="email" placeholder="Email address" value={auth.email} onChange={e => setAuth({...auth, email:e.target.value})} required/>
-      <input type="password" placeholder="Password" value={auth.password} onChange={e => setAuth({...auth, password:e.target.value})} required minLength="6"/>
+      <PasswordInput value={auth.password} onChange={e => setAuth({...auth, password:e.target.value})}/>
       <button className="primary">{registering ? 'Create account' : 'Sign in'}</button>
     </form>
     {error && <p className="error">{error}</p>}

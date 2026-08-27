@@ -111,16 +111,16 @@ cp .env.example .env
 | `AI_API_KEY` | Yes | Authenticates AI Service requests to the configured Gemini endpoint. |
 | `AI_MODEL` | No | Overrides the model; the default is `gemini-3.6-flash`. |
 | `PROTOTYPE_GENERATION_MODE` | No | `async` for local Compose; Render sets `sync`. |
-| `JWT_SECRET` | Yes | Signs authentication tokens. Use a long random value. |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Yes | Configure local Compose PostgreSQL. |
-| `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `RABBITMQ_ERLANG_COOKIE` | Yes | Configure local RabbitMQ. |
+| `JWT_SECRET` | No locally | Signs authentication tokens. Compose has a local-only default; Render generates a production secret. |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | No locally | Optional overrides; Compose defaults match the original `enterprise_db` local volume. |
+| `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `RABBITMQ_ERLANG_COOKIE` | No locally | Optional overrides; Compose supplies nonblank local defaults. |
 | `CORS_ALLOWED_ORIGIN` | No | Allowed browser origin; defaults locally to `http://localhost:5173`. |
 | `VITE_API_BASE_URL` | Production | Public Gateway URL ending in `/api`; local development uses the Vite proxy when unset. |
 | `AUTH_SERVICE_BASE_URL` | Render Gateway | Public HTTPS origin of Auth Service; Docker uses `http://auth-service:8081`. |
 | `PROJECT_SERVICE_BASE_URL` | Render Gateway | Public HTTPS origin of Project Service; Docker uses `http://project-service:8082`. |
 | `AI_SERVICE_BASE_URL` | Render Gateway and Project Service | Public HTTPS origin of AI Service; Docker uses `http://ai-service:8083`. |
 
-Never commit real values. Render generates internal credentials where possible and prompts for deployment-specific values.
+For local Docker, `.env` only needs `AI_API_KEY`. Never commit real values. Render generates internal credentials where possible and prompts for deployment-specific values.
 
 ## Local Setup
 

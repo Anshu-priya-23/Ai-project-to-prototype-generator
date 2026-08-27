@@ -8,6 +8,7 @@ import com.enterprise.auth.entity.Role;
 import com.enterprise.auth.entity.User;
 import com.enterprise.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,6 +24,10 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
 
     public AuthenticationResponse register(RegisterRequest request) {
+        if (repository.existsByEmail(request.getEmail())) {
+            throw new DuplicateEmailException();
+        }
+
         var user = User.builder()
                 .firstname(request.getFirstname())
                 .lastname(request.getLastname())
@@ -30,7 +35,13 @@ public class AuthenticationService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole() != null ? request.getRole() : Role.DEVELOPER) // Default role
                 .build();
-        repository.save(user);
+        try {
+            repository.save(user);
+        } catch (DataIntegrityViolationException exception) {
+            // The unique database constraint remains the final safeguard for
+            // simultaneous registrations of the same address.
+            throw new DuplicateEmailException();
+        }
         var jwtToken = jwtService.generateToken(user);
         return AuthenticationResponse.builder()
                 .token(jwtToken)
