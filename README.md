@@ -2,13 +2,13 @@
 
 AI Project-to-Prototype Generator is a microservice-based web application that turns a project name and detailed description into a saved, interactive product prototype. The generated specification includes a project overview, features, user roles, navigation, screens, sample UI content, and project-specific technology recommendations.
 
-The React frontend presents each generated screen as a navigable desktop preview. Prototype generation runs asynchronously through RabbitMQ, while project data, generation status, and the generated JSON specification are stored in PostgreSQL.
+The React frontend presents each generated screen as a navigable desktop preview. Local Docker development runs prototype generation asynchronously through RabbitMQ. The free Render deployment uses a synchronous service-to-service HTTP fallback because free private services, background workers, and persistent disks are unavailable. Both modes store project data, generation status, and generated JSON in PostgreSQL.
 
 ## Features
 
 - Register and sign in with email and password.
 - Create and list projects associated with an owner email.
-- Submit prototype-generation jobs asynchronously.
+- Generate prototypes asynchronously in local Docker or synchronously on free Render.
 - Track generation through `Queued`, `Generating`, `Completed`, and `Failed` states.
 - Generate description-specific product specifications containing:
   - project overview;
@@ -48,9 +48,9 @@ PostgreSQL         |  +--- results ---+
 | **Frontend** | React user interface for authentication, project creation, status polling, interactive prototype rendering, and technology-stack tabs. Browser API requests use the Vite `/api` proxy. |
 | **API Gateway** | Single HTTP entry point that routes authentication, project, and AI service requests to their Docker network destinations. |
 | **Auth Service** | Registers users, authenticates credentials, stores users in PostgreSQL, and issues JWTs. |
-| **Project Service** | Persists projects and prototype state, publishes generation requests, consumes AI results, and saves completed specifications or failure details. |
-| **AI Service** | Consumes generation requests, prompts the configured Gemini model through its OpenAI-compatible endpoint, validates the structured response, and publishes generation results. |
-| **RabbitMQ** | Carries durable prototype request and result messages between the project and AI services. |
+| **Project Service** | Persists projects and prototype state. It uses RabbitMQ in local async mode and calls AI Service over HTTP in Render sync mode. |
+| **AI Service** | Generates and validates structured Gemini responses through either its HTTP endpoint or its local RabbitMQ consumer. |
+| **RabbitMQ** | Carries durable local-development request and result messages; it is not deployed to Render. |
 | **PostgreSQL** | Stores application users, projects, prototype statuses, errors, and generated prototype JSON. |
 
 ## Tech Stack
@@ -66,7 +66,9 @@ PostgreSQL         |  +--- results ---+
 | Persistence | PostgreSQL 15 |
 | Runtime | Docker Compose; Node.js and npm for the frontend development server |
 
-## Asynchronous Prototype Generation
+## Prototype Generation Modes
+
+Local Docker Compose explicitly sets `PROTOTYPE_GENERATION_MODE=async`:
 
 1. The frontend saves a project through the API Gateway.
 2. A new project is stored with `NOT_STARTED` status.
@@ -81,6 +83,8 @@ PostgreSQL         |  +--- results ---+
 9. The frontend polls the project list while work is queued or generating, then renders the saved specification after completion.
 
 The prototype specification is stored in the project's `prototypeSpec` field as JSON, so screens and recommendations remain available after a browser refresh.
+
+Render sets `PROTOTYPE_GENERATION_MODE=sync`. Project Service marks the project `GENERATING`, calls `POST /api/v1/ai/prototype` on AI Service over Render's private network, and saves the returned `COMPLETED` or `FAILED` result before responding. RabbitMQ listeners, queues, and health checks are inactive in this mode.
 
 ## Prerequisites
 
@@ -105,7 +109,8 @@ cp .env.example .env
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `AI_API_KEY` | Yes | Authenticates AI Service requests to the configured Gemini endpoint. |
-| `AI_MODEL` | No | Overrides the model; Compose defaults to `gemini-3.6-flash`. |
+| `AI_MODEL` | No | Overrides the model; the default is `gemini-3.6-flash`. |
+| `PROTOTYPE_GENERATION_MODE` | No | `async` for local Compose; Render sets `sync`. |
 | `JWT_SECRET` | Yes | Signs authentication tokens. Use a long random value. |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Yes | Configure local Compose PostgreSQL. |
 | `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `RABBITMQ_ERLANG_COOKIE` | Yes | Configure local RabbitMQ. |
@@ -190,49 +195,53 @@ Authentication responses contain `token` and `email`. Project responses contain 
 
 Backend health is available directly on every Spring service at `/actuator/health`. The public Gateway check is [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health).
 
-## Deploy to Render
+## Deploy to Render for Free
 
-The root [`render.yaml`](render.yaml) is a Render Blueprint. It attaches Auth Service and Project Service to the existing Render PostgreSQL database named `prototype-db`; it does not create another database.
+The root [`render.yaml`](render.yaml) creates one free static site and four free Docker web services. It references the existing free Render PostgreSQL database named `prototype-db`; it creates no database, private service, worker, RabbitMQ instance, or disk.
 
-### Before deployment
+All four backend services must use the same region as `prototype-db`. If the existing database is not in Render's default region, add its supported `region` value to every Docker web service in `render.yaml` before committing.
 
-1. Push the repository to a Git provider connected to Render.
-2. Confirm `prototype-db` exists in the Render workspace where the Blueprint will be created.
-3. Ensure every private backend service and RabbitMQ is created in the **same region as `prototype-db`**. Render private networking and the database internal connection string are regional. If the database is not in Render's default Blueprint region, add the same supported `region` value to the five non-static services in `render.yaml` before applying it.
-4. In the Render Dashboard, choose **New > Blueprint**, select this repository, and apply `render.yaml`.
+### Dashboard steps
 
-### Values requested during Blueprint creation
+1. Push this repository to GitHub, GitLab, or Bitbucket.
+2. Confirm in the target Render workspace that the existing free database is named exactly `prototype-db`, and note its region.
+3. Select **New > Blueprint**, connect the repository, keep the Blueprint path as `render.yaml`, and select **Apply**.
+4. At the environment-variable prompts, enter the temporary values in the table below. Render generates `JWT_SECRET` and wires database and private service host/port values automatically.
+5. Wait for all five resources to be created. Copy the actual `onrender.com` URLs shown for `prototype-frontend` and `prototype-api-gateway`.
+6. Open **prototype-api-gateway > Environment**, set `CORS_ALLOWED_ORIGIN` to the exact frontend origin with no trailing slash, and save/redeploy.
+7. Open **prototype-frontend > Environment**, set `VITE_API_BASE_URL` to the exact Gateway URL plus `/api`, save, then select **Manual Deploy > Clear build cache & deploy** because Vite embeds this value at build time.
+8. Verify `https://<gateway-host>/actuator/health` and `https://<gateway-host>/api/v1/ai/status`. Then test registration, login, project creation, generation, preview navigation, tech-stack tabs, logout, login again, and saved-project loading.
 
-| Service | Variable | Value to supply |
+| Service | Variable | Exact value at the Blueprint prompt |
 | --- | --- | --- |
-| `prototype-ai-service` | `AI_API_KEY` | Your AI provider key. |
-| `prototype-api-gateway` | `CORS_ALLOWED_ORIGIN` | The final frontend origin, for example `https://prototype-frontend.onrender.com` (no trailing slash). |
-| `prototype-frontend` | `VITE_API_BASE_URL` | The final public Gateway URL plus `/api`, for example `https://prototype-api-gateway.onrender.com/api`. |
+| `prototype-ai-service` | `AI_API_KEY` | A real Gemini API key; keep it secret. |
+| `prototype-api-gateway` | `CORS_ALLOWED_ORIGIN` | Initially `https://prototype-frontend.onrender.com`, then the actual frontend origin. |
+| `prototype-frontend` | `VITE_API_BASE_URL` | Initially `https://prototype-api-gateway.onrender.com/api`, then the actual Gateway URL plus `/api`. |
 
-Render generates `JWT_SECRET`, the RabbitMQ password, and the Erlang cookie. Database details come from `prototype-db`; RabbitMQ connection values are shared internally through Blueprint references. Do not enter or commit those generated values manually.
+The Blueprint supplies the remaining production values:
 
-Because Vite embeds `VITE_API_BASE_URL` at build time, redeploy the static frontend after its final Gateway URL is set. If Render assigns URLs only after the first Blueprint creation, set both public URL variables in the Dashboard and trigger one frontend redeploy.
+| Service | Variable | Value/source |
+| --- | --- | --- |
+| Auth | `DATABASE_URL` | Existing `prototype-db` private connection string |
+| Auth | `JWT_SECRET` | Render-generated secret |
+| Project | `DATABASE_URL` | Existing `prototype-db` private connection string |
+| Project | `PROTOTYPE_GENERATION_MODE` | `sync` |
+| Project | `RABBIT_HEALTH_ENABLED` | `false` |
+| Project | `AI_SERVICE_HOST`, `AI_SERVICE_PORT` | AI web service private host and port |
+| Gateway | service host/port variables | Auth, Project, and AI private host/port references |
+| AI | `PROTOTYPE_GENERATION_MODE` | `sync` |
+| AI | `RABBIT_HEALTH_ENABLED` | `false` |
+| AI | `AI_MODEL` | `gemini-3.6-flash` |
 
-### Deployment order and verification
+### Free-tier limitations
 
-The Blueprint manages dependencies, but the useful readiness order is:
-
-1. Existing `prototype-db`.
-2. `prototype-rabbitmq`.
-3. `prototype-auth-service`, `prototype-project-service`, and `prototype-ai-service`.
-4. `prototype-api-gateway`.
-5. `prototype-frontend` after its build-time Gateway URL is known.
-
-Verify the Gateway first:
-
-```text
-GET https://<gateway-host>/actuator/health
-GET https://<gateway-host>/api/v1/ai/status
-```
-
-Then open the frontend and test registration, authentication, project creation, listing, prototype generation, and the saved prototype preview. The Gateway is the only public backend; Auth, Project, AI, and RabbitMQ are Render private services.
-
-Render uses the Gateway's `/actuator/health` as its HTTP health check. Private services expose the same actuator endpoint for diagnostics and receive Render's private-service TCP readiness check.
+- Free web services spin down after 15 minutes without incoming traffic. A first workflow after inactivity can be slow because multiple services may wake independently.
+- A workspace receives 750 free web-service instance hours per month. Four simultaneously active backend services consume those hours independently, so this is a lightly used portfolio demo rather than an always-busy production system.
+- A free PostgreSQL database is limited to 1 GB, has no backups or managed connection pooling, and expires 30 days after creation. Export or recreate demo data before expiry.
+- Free web services have ephemeral filesystems and cannot attach persistent disks. Durable application data belongs in PostgreSQL.
+- All backend components are web services and therefore have public Render URLs, even though service-to-service calls use Render's private network. This is not security-hardened production infrastructure.
+- Generation is one synchronous HTTP request in the free deployment. A cold start, AI-provider latency, provider quota, or upstream timeout can fail it; the project records `FAILED` and can be regenerated.
+- Render's included bandwidth/build-minute quotas and the Gemini API's own quotas still apply.
 
 ## Project Structure
 

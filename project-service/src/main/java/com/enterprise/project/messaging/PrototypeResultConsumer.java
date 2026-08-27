@@ -6,8 +6,10 @@ import com.enterprise.project.repository.ProjectRepository;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Component
+@ConditionalOnProperty(name = "prototype.generation.mode", havingValue = "async", matchIfMissing = true)
 public class PrototypeResultConsumer {
     private final ProjectRepository repository;
     private final ObjectMapper objectMapper;

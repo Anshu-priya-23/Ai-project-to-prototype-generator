@@ -28,7 +28,7 @@ spring:
         - id: ai-service
           uri: http://${AI_SERVICE_HOST:ai-service}:${AI_SERVICE_PORT:8083}
           predicates:
-            - Path=/api/v1/ai/**
+            - Path=/api/v1/ai/status
 
 management:
   endpoints:

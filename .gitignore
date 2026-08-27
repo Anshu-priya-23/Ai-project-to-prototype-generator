@@ -8,6 +8,8 @@
 **/build/
 *.jar
 *.class
+*.log
+hs_err_pid*
 
 .idea/
 .vscode/

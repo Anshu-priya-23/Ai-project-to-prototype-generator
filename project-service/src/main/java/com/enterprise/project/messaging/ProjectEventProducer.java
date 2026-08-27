@@ -4,8 +4,10 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Service
+@ConditionalOnProperty(name = "prototype.generation.mode", havingValue = "async", matchIfMissing = true)
 public class ProjectEventProducer {
 
     private final RabbitTemplate rabbitTemplate;

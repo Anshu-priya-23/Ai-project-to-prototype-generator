@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api' });
@@ -13,7 +13,8 @@ function Preview({ project }) {
   const spec = useMemo(() => {
     try { return JSON.parse(project.prototypeSpec); } catch { return null; }
   }, [project.prototypeSpec]);
-  useEffect(() => setActiveId(spec?.screens?.[0]?.id || null), [project.id, project.prototypeSpec]);
+  const firstScreenId = spec?.screens?.[0]?.id || null;
+  useEffect(() => setActiveId(firstScreenId), [project.id, firstScreenId]);
   useEffect(() => setActiveStack('frontend'), [project.id, project.prototypeSpec]);
   if (!spec) return null;
   const screen = spec.screens.find(item => item.id === activeId) || spec.screens[0];
@@ -81,18 +82,18 @@ function App() {
     else delete api.defaults.headers.common.Authorization;
   }, [session]);
 
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     if (!session) return;
     try {
       const { data } = await api.get('/v1/projects', { params: { ownerEmail: session.email } });
       setProjects(data);
     } catch { setError('Could not load your projects.'); }
-  };
-  useEffect(() => { loadProjects(); }, [session]);
+  }, [session]);
+  useEffect(() => { loadProjects(); }, [loadProjects]);
   useEffect(() => {
     if (!session || !projects.some(p => ['QUEUED','GENERATING'].includes(p.prototypeStatus))) return;
     const timer = setInterval(loadProjects, 2000); return () => clearInterval(timer);
-  }, [session, projects]);
+  }, [session, projects, loadProjects]);
 
   const submitAuth = async event => {
     event.preventDefault(); setError('');

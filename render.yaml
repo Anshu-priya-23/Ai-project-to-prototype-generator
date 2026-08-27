@@ -2,6 +2,7 @@ services:
   - type: web
     name: prototype-frontend
     runtime: static
+    plan: free
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
     routes:
@@ -15,50 +16,51 @@ services:
   - type: web
     name: prototype-api-gateway
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./api-gateway/Dockerfile
     dockerContext: ./api-gateway
     healthCheckPath: /actuator/health
     envVars:
       - key: AUTH_SERVICE_HOST
         fromService:
-          type: pserv
+          type: web
           name: prototype-auth-service
           property: host
       - key: AUTH_SERVICE_PORT
         fromService:
-          type: pserv
+          type: web
           name: prototype-auth-service
           property: port
       - key: PROJECT_SERVICE_HOST
         fromService:
-          type: pserv
+          type: web
           name: prototype-project-service
           property: host
       - key: PROJECT_SERVICE_PORT
         fromService:
-          type: pserv
+          type: web
           name: prototype-project-service
           property: port
       - key: AI_SERVICE_HOST
         fromService:
-          type: pserv
+          type: web
           name: prototype-ai-service
           property: host
       - key: AI_SERVICE_PORT
         fromService:
-          type: pserv
+          type: web
           name: prototype-ai-service
           property: port
       - key: CORS_ALLOWED_ORIGIN
         sync: false
 
-  - type: pserv
+  - type: web
     name: prototype-auth-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./auth-service/Dockerfile
     dockerContext: ./auth-service
+    healthCheckPath: /actuator/health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -67,84 +69,46 @@ services:
       - key: JWT_SECRET
         generateValue: true
 
-  - type: pserv
+  - type: web
     name: prototype-project-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./project-service/Dockerfile
     dockerContext: ./project-service
+    healthCheckPath: /actuator/health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: prototype-db
           property: connectionString
-      - key: SPRING_RABBITMQ_HOST
+      - key: PROTOTYPE_GENERATION_MODE
+        value: sync
+      - key: RABBIT_HEALTH_ENABLED
+        value: false
+      - key: AI_SERVICE_HOST
         fromService:
-          type: pserv
-          name: prototype-rabbitmq
+          type: web
+          name: prototype-ai-service
           property: host
-      - key: SPRING_RABBITMQ_PORT
+      - key: AI_SERVICE_PORT
         fromService:
-          type: pserv
-          name: prototype-rabbitmq
+          type: web
+          name: prototype-ai-service
           property: port
-      - key: SPRING_RABBITMQ_USERNAME
-        fromService:
-          type: pserv
-          name: prototype-rabbitmq
-          envVarKey: RABBITMQ_DEFAULT_USER
-      - key: SPRING_RABBITMQ_PASSWORD
-        fromService:
-          type: pserv
-          name: prototype-rabbitmq
-          envVarKey: RABBITMQ_DEFAULT_PASS
 
-  - type: pserv
+  - type: web
     name: prototype-ai-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./ai-service/Dockerfile
     dockerContext: ./ai-service
+    healthCheckPath: /actuator/health
     envVars:
-      - key: SPRING_RABBITMQ_HOST
-        fromService:
-          type: pserv
-          name: prototype-rabbitmq
-          property: host
-      - key: SPRING_RABBITMQ_PORT
-        fromService:
-          type: pserv
-          name: prototype-rabbitmq
-          property: port
-      - key: SPRING_RABBITMQ_USERNAME
-        fromService:
-          type: pserv
-          name: prototype-rabbitmq
-          envVarKey: RABBITMQ_DEFAULT_USER
-      - key: SPRING_RABBITMQ_PASSWORD
-        fromService:
-          type: pserv
-          name: prototype-rabbitmq
-          envVarKey: RABBITMQ_DEFAULT_PASS
+      - key: PROTOTYPE_GENERATION_MODE
+        value: sync
+      - key: RABBIT_HEALTH_ENABLED
+        value: false
       - key: AI_API_KEY
         sync: false
       - key: AI_MODEL
         value: gemini-3.6-flash
-
-  - type: pserv
-    name: prototype-rabbitmq
-    runtime: image
-    plan: starter
-    image:
-      url: docker.io/library/rabbitmq:3-management-alpine
-    envVars:
-      - key: RABBITMQ_DEFAULT_USER
-        value: prototype_app
-      - key: RABBITMQ_DEFAULT_PASS
-        generateValue: true
-      - key: RABBITMQ_ERLANG_COOKIE
-        generateValue: true
-    disk:
-      name: rabbitmq-data
-      mountPath: /var/lib/rabbitmq
-      sizeGB: 1

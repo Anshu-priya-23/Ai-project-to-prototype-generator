@@ -53,6 +53,7 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+      PROTOTYPE_GENERATION_MODE: async
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +70,7 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+      PROTOTYPE_GENERATION_MODE: async
     depends_on:
       rabbitmq:
         condition: service_healthy
