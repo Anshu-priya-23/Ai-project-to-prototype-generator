@@ -15,6 +15,7 @@ services:
 
   - type: web
     name: prototype-api-gateway
+    region: singapore
     runtime: docker
     plan: free
     dockerfilePath: ./api-gateway/Dockerfile
@@ -56,6 +57,7 @@ services:
 
   - type: web
     name: prototype-auth-service
+    region: singapore
     runtime: docker
     plan: free
     dockerfilePath: ./auth-service/Dockerfile
@@ -71,6 +73,7 @@ services:
 
   - type: web
     name: prototype-project-service
+    region: singapore
     runtime: docker
     plan: free
     dockerfilePath: ./project-service/Dockerfile
@@ -98,6 +101,7 @@ services:
 
   - type: web
     name: prototype-ai-service
+    region: singapore
     runtime: docker
     plan: free
     dockerfilePath: ./ai-service/Dockerfile
